@@ -14,9 +14,5 @@ namespace DatingApp.API.Data
 
         Task<bool> UserExists(string username);
 
-
-
-
     }
-
 }

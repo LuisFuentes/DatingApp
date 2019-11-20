@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using DatingApp.API.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -10,8 +12,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 
 namespace DatingApp.API
 {
@@ -34,14 +38,34 @@ namespace DatingApp.API
             services.AddDbContext<DataContext>(x => 
                 x.UseSqlite(Configuration.GetConnectionString("DefaultConnection")));
 
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+            services.AddRazorPages();
 
-            // Add auth repo interface into the services
+            // Add JWT Authentication
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        // Grab the JWT Token from app settings
+                        IssuerSigningKey = new SymmetricSecurityKey(
+                            Encoding.ASCII.GetBytes(
+                                Configuration.GetSection("Appsettings:Token").Value)),
+
+                        ValidateIssuerSigningKey = true,
+                        // Note: Turned off while in development, turn on in Prod.
+                        ValidateAudience = false,
+                        ValidateIssuer = false
+                    };
+                });
+
+            // Add auth repo interface into the services via service injection
+            // Creates a single instance for each request, but instance can be passed into different areas
+            // of the app.
             services.AddScoped<IAuthRepository, AuthRepository>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
@@ -56,6 +80,11 @@ namespace DatingApp.API
             // TODO: Turned off while in Development, turn on in Prod.
             //app.UseHttpsRedirection();
 
+            app.UseRouting();
+
+            app.UseAuthentication();
+            app.UseAuthorization();
+
             // Set up Cross-Origin
             if (env.IsDevelopment())
             {
@@ -66,7 +95,15 @@ namespace DatingApp.API
 
             }
 
-            app.UseMvc();
+            app.UseEndpoints(endpoints => 
+            { 
+                endpoints.MapControllers();
+            });
+
+
+           
+            
+            //app.UseMvc();
         }
     }
 }
